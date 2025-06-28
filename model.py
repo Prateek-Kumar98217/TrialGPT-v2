@@ -34,8 +34,7 @@ class RotaryEmbedding(nn.Module):
     def forward(self, seq_len):
         pos=torch.arange(seq_len, dtype=torch.float, device=self.inv_freq.device)
         freqs=torch.einsum("i,j->ij", pos, self.inv_freq)
-        emb=torch.cat((freqs,freqs), dim=-1)
-        return emb
+        return freqs
 
     def apply_rotary(self, x, rotray_emb):
         x1, x2=x[..., ::2],x[..., 1::2]

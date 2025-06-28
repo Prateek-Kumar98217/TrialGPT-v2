@@ -66,9 +66,11 @@ class MultiQueryAttention(nn.Module):
         q=self.rotary.apply_rotary(q, rotary_emb.unsqueeze(0).unsqueeze(0))
         k=self.rotary.apply_rotary(k, rotary_emb.unsqueeze(0).unsqueeze(0))
 
-        if self.num_kv_heads==1:
-            k = k.expand(B, self.num_heads, T, self.head_dim)
-            v = v.expand(B, self.num_heads, T, self.head_dim)
+        if self.num_heads != self.num_kv_heads:
+            assert self.num_heads % self.num_kv_heads == 0
+            repeat_factor = self.num_heads // self.num_kv_heads
+            k = k.repeat_interleave(repeat_factor, dim=1)
+            v = v.repeat_interleave(repeat_factor, dim=1)
 
         scores = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
         causal_mask = torch.tril(torch.ones(T, T, device=x.device)).unsqueeze(0).unsqueeze(0)

@@ -143,7 +143,7 @@ class TrialGPT(nn.Module):
 
     def forward(self, idx):
         B, T = idx.shape
-        assert T <= self.config.max_seq_len, f"Sequence length {T} exceeds max {self.config.max_seq_len}"
+        assert T <= self.config.max_seq_length, f"Sequence length {T} exceeds max {self.config.max_seq_length}"
         x = self.embed(idx)
         for block in self.blocks:
             x = block(x)
@@ -154,7 +154,7 @@ class TrialGPT(nn.Module):
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
         for _ in range(max_new_tokens):
-            idx_cond = idx if idx.size(1) < self.config.max_seq_len else idx[:, -self.config.max_seq_len:]
+            idx_cond = idx if idx.size(1) < self.config.max_seq_length else idx[:, -self.config.max_seq_length:]
             logits = self(idx_cond)
             logits = logits[:, -1, :] / temperature
 

@@ -10,6 +10,7 @@ class GPTCofig():
     num_layers: int = 12
     norm_type: str = "rms"
     num_kv_heads: int = 2
+    droput:float =0.2
     max_seq_length: int = 1024
     vocab_size: 50257
 
@@ -26,6 +27,7 @@ class RMSNorm(nn.Module):
 class RotaryEmbedding(nn.Module):
     def __init__(self, dim):
         super().__init__()
+
         inv_freq=1.0/(10000 **(torch.arange(0, dim, 2).float()/dim))
         self.register_buffer("inv_freq", inv_freq)
 
@@ -43,6 +45,7 @@ class RotaryEmbedding(nn.Module):
 class MultiQueryAttention(nn.Module):
     def __init__(self, dim, num_heads, num_kv_heads):
         super().__init__()
+
         self.num_heads=num_heads
         self.num_kv_heads=num_kv_heads
         self.head_dim=dim//num_heads
@@ -80,6 +83,7 @@ class MultiQueryAttention(nn.Module):
 class SwiGLU(nn.Module):
     def __init__(self, dim):
         super().__init__()
+
         self.proj=nn.Linear(dim, dim*2)
 
     def forward(self, x):
@@ -89,6 +93,7 @@ class SwiGLU(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self, dim):
         super().__init__()
+
         self.net=nn.Sequential(
             SwiGLU(dim),
             nn.Linear(dim, dim)
@@ -98,23 +103,27 @@ class FeedForward(nn.Module):
         return self.net(x)
     
 class TransformerBlock(nn.Module):
-    def __init__(self, dim, num_heads, num_kv_heads, norm_type="rms", num_layers=1):
+    def __init__(self, dim, num_heads, num_kv_heads, dropout=0.2, norm_type="rms", num_layers=1):
         super().__init__()
+
         self.scale=(2*num_layers)**0.5
         Norm = RMSNorm if norm_type=="rms" else nn.LayerNorm
         self.norm1=Norm(dim)
         self.attn=MultiQueryAttention(dim, num_heads, num_kv_heads)
+        self.drop1=nn.Dropout(dropout)
         self.norm2=Norm(dim)
         self.ffn=FeedForward(dim)
+        self.drop2=nn.Dropout(dropout)
 
     def forward(self, x):
-        x= x+self.attn(self.norm1(x))/self.scale
-        x=x+ self.ffn(self.norm2(x))/self.scale
+        x= x+self.drop1(self.attn(self.norm1(x)))/self.scale
+        x=x+ self.drop2(self.ffn(self.norm2(x)))/self.scale
         return x
     
 class TrialGPT(nn.Module):
     def __init__(self, config: GPTCofig):
         super().__init__()
+
         self.config=config
         self.embed=nn.Embedding(config.vocab_size, config.dim)
         self.blocks=nn.ModuleList([
@@ -123,9 +132,11 @@ class TrialGPT(nn.Module):
                 num_heads=config.num_heads,
                 num_kv_heads=config.num_kv_heads,
                 norm_type=config.norm_type,
+                dropout=config.dropout,
                 num_layers=config.num_layers
             ) for _ in range(config.num_layers)
         ])
+
         self.norm_final=RMSNorm(config.dim) if config.norm_type=="rms" else nn.LayerNorm(config.dim)
         self.lm_head=nn.Linear(config.dim, config.vocab_size, bias=False)
         self.lm_head.weight=self.embed.weight
@@ -139,3 +150,20 @@ class TrialGPT(nn.Module):
         x = self.norm_final(x)
         logits = self.lm_head(x)
         return logits
+    
+    @torch.no_grad()
+    def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+        for _ in range(max_new_tokens):
+            idx_cond = idx if idx.size(1) < self.config.max_seq_len else idx[:, -self.config.max_seq_len:]
+            logits = self(idx_cond)
+            logits = logits[:, -1, :] / temperature
+
+            if top_k is not None:
+                values, _ = torch.topk(logits, top_k)
+                logits[logits < values[:, [-1]]] = -float('inf')
+
+            probs = F.softmax(logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1)
+            idx = torch.cat([idx, next_token], dim=1)
+
+        return idx

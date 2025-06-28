@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 
 @dataclass
-class GPTCofig():
+class GPTConfig():
     dim: int
     num_heads: int = 8
     num_layers: int = 12
@@ -12,7 +12,7 @@ class GPTCofig():
     num_kv_heads: int = 2
     droput:float =0.2
     max_seq_length: int = 1024
-    vocab_size: 50257
+    vocab_size:int = 50257
 
 class RMSNorm(nn.Module):
     def __init__(self, dim, eps=1e-8):
@@ -121,7 +121,7 @@ class TransformerBlock(nn.Module):
         return x
     
 class TrialGPT(nn.Module):
-    def __init__(self, config: GPTCofig):
+    def __init__(self, config: GPTConfig):
         super().__init__()
 
         self.config=config

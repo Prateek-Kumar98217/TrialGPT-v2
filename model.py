@@ -10,7 +10,7 @@ class GPTConfig():
     num_layers: int = 12
     norm_type: str = "rms"
     num_kv_heads: int = 2
-    droput:float =0.2
+    dropout:float =0.2
     max_seq_length: int = 1024
     vocab_size:int = 50257
 
